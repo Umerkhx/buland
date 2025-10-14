@@ -1,23 +1,45 @@
-import { NextResponse } from 'next/server'
-import { supabaseServer } from '@/app/lib/supabaseClient'
-import bcrypt from 'bcryptjs'
+import { NextResponse } from "next/server";
+import { supabaseServer } from "@/app/lib/supabaseClient";
+import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
-  const { email, password } = await req.json()
+  try {
+    const { email, password } = await req.json();
+    
+    const { data: user, error } = await supabaseServer
+      .from("users")
+      .select("id, email, password, role")
+      .eq("email", email)
+      .single();
+    
+    if (error || !user) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+    
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    }
 
-  const { data: user, error } = await supabaseServer
-    .from('users')
-    .select('id, email, password, full_name, role')
-    .eq('email', email)
-    .single()
-
-  if (error || !user) return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
-
-  const isMatch = await bcrypt.compare(password, user.password)
-  if (!isMatch) return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
-
-  return NextResponse.json({
-    message: `Logged in as ${user.role}`,
-    user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role },
-  })
+    const cookieStore = await cookies();
+    cookieStore.set("user_session", JSON.stringify({ 
+      id: user.id, 
+      role: user.role 
+    }), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, 
+      path: "/",
+    });
+    
+    return NextResponse.json({
+      message: "Login successful",
+      user: { id: user.id, role: user.role },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+  }
 }
