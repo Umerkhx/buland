@@ -7,6 +7,7 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
+
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
@@ -17,27 +18,44 @@ export async function POST(req: Request) {
     const category_id = parseInt(formData.get("category_id") as string);
     const design_category_id = parseInt(formData.get("design_category_id") as string);
     const size = formData.get("size") as string;
-    const image = formData.get("image") as File | null;
 
-    if (!name || !description || !price || !image) {
+    const images = formData.getAll("images") as File[];
+
+    if (!name || !description || !price || images.length === 0) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const fileName = `${Date.now()}-${image.name}`;
-    const { error: uploadError } = await supabaseServer.storage
-      .from("product-images")
-      .upload(fileName, image, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+    const imageUrls: string[] = [];
 
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 400 });
+    for (const image of images) {
+      if (!(image instanceof File)) {
+        console.error("Invalid image in form data:", image);
+        continue;
+      }
+
+      const fileName = `${Date.now()}-${image.name}`;
+      console.log("Uploading:", fileName);
+
+      const { error: uploadError } = await supabaseServer.storage
+        .from("product-images")
+        .upload(fileName, image, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError.message);
+        return NextResponse.json({ error: uploadError.message }, { status: 400 });
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabaseServer.storage.from("product-images").getPublicUrl(fileName);
+
+      imageUrls.push(publicUrl);
     }
 
-    const {
-      data: { publicUrl },
-    } = supabaseServer.storage.from("product-images").getPublicUrl(fileName);
+    console.log("All uploaded URLs:", imageUrls);
 
     const { data, error } = await supabaseServer
       .from("products")
@@ -49,13 +67,14 @@ export async function POST(req: Request) {
           category_id,
           design_category_id,
           size,
-          image_url: publicUrl,
+          image_url: imageUrls,
         },
       ])
       .select("*")
       .single();
 
     if (error) {
+      console.error("Database insert error:", error.message);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
@@ -65,9 +84,6 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Unexpected error:", err);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

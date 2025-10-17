@@ -40,43 +40,7 @@ export default function ProductCategoriesPage() {
 
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900">
-      <nav className="bg-white dark:bg-zinc-800 shadow-md p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold cursor-pointer" onClick={() => router.push("/")}>
-            My Store
-          </h1>
-          <div className="flex gap-4 items-center">
-            {user ? (
-              <>
-                <span className="text-sm">Welcome, {user.full_name}</span>
-                {user.role === "admin" && (
-                  <button
-                    onClick={() => router.push("/admin")}
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-                  >
-                    Admin Panel
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => router.push("/login")}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => router.push("/signup")}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-                >
-                  Sign Up
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+
 
       <div className="max-w-7xl mx-auto p-8">
         <div className="text-center mb-8">

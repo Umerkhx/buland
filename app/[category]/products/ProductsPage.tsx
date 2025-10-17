@@ -2,6 +2,13 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
+import Breadcrumb from "@/app/components/Breadcrumb";
+import FilterBar from "@/app/components/FilterBar";
+import ProductsGrid from "@/app/components/ProductGrid";
+import { DesignCategory, Product, ProductCategory } from "@/app/types/product-types/product-types";
+
+
+
 
 
 export default function ProductsListingPage() {
@@ -13,45 +20,50 @@ export default function ProductsListingPage() {
   const categoryId = searchParams.get("category_id");
   const designCategoryId = searchParams.get("design_category_id");
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [designCategories, setDesignCategories] = useState<any[]>([]);
-  const [currentCategory, setCurrentCategory] = useState<any | null>(null);
-  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [designCategories, setDesignCategories] = useState<DesignCategory[]>([]);
+  const [currentCategory, setCurrentCategory] = useState<ProductCategory | null>(null);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedDesignCategory, setSelectedDesignCategory] = useState<string | null>(
     designCategoryId
   );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const productsRes = await fetch("/api/products");
-        const productsData = await productsRes.json();
-
-        const designRes = await fetch("/api/design-categories/get-design-categories");
-        const designData = await designRes.json();
-
-        const categoriesRes = await fetch("/api/product-categories/get-product-categories");
-        const categoriesData = await categoriesRes.json();
-        
-        if (categoryId) {
-          const category = categoriesData.find((c: any) => c.id === parseInt(categoryId));
-          setCurrentCategory(category);
-        }
-
-        setProducts(productsData);
-        setDesignCategories(designData);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
   }, [categoryId]);
 
   useEffect(() => {
+    filterProducts();
+  }, [products, categoryId, selectedDesignCategory]);
+
+  const fetchData = async () => {
+    try {
+      const [productsRes, designRes, categoriesRes] = await Promise.all([
+        fetch("/api/products"),
+        fetch("/api/design-categories/get-design-categories"),
+        fetch("/api/product-categories/get-product-categories"),
+      ]);
+
+      const productsData = await productsRes.json();
+      const designData = await designRes.json();
+      const categoriesData = await categoriesRes.json();
+      
+      if (categoryId) {
+        const category = categoriesData.find((c: any) => c.id === parseInt(categoryId));
+        setCurrentCategory(category);
+      }
+
+      setProducts(productsData);
+      setDesignCategories(designData);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterProducts = () => {
     let filtered = products;
 
     if (categoryId) {
@@ -65,7 +77,7 @@ export default function ProductsListingPage() {
     }
 
     setFilteredProducts(filtered);
-  }, [products, categoryId, selectedDesignCategory]);
+  };
 
   const handleDesignCategoryChange = (designCatId: string | null) => {
     setSelectedDesignCategory(designCatId);
@@ -77,7 +89,7 @@ export default function ProductsListingPage() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const handleProductClick = (product: any) => {
+  const handleProductClick = (product: Product) => {
     const productSlug = product.name.toLowerCase().replace(/\s+/g, "-");
     const categorySlug = pathname.split("/")[1];
     
@@ -90,46 +102,9 @@ export default function ProductsListingPage() {
 
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900">
-      <nav className="bg-white dark:bg-zinc-800 shadow-md p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold cursor-pointer" onClick={() => router.push("/")}>
-            My Store
-          </h1>
-          <div className="flex gap-4 items-center">
-            {user ? (
-              <span className="text-sm">Welcome, {user.full_name}</span>
-            ) : (
-              <>
-                <button
-                  onClick={() => router.push("/login")}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Login
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
 
       <div className="max-w-7xl mx-auto p-8">
-        <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">
-          <span className="cursor-pointer hover:text-blue-600" onClick={() => router.push("/")}>
-            Home
-          </span>
-          {" / "}
-          <span className="cursor-pointer hover:text-blue-600" onClick={() => router.push("/categories")}>
-            Categories
-          </span>
-          {currentCategory && (
-            <>
-              {" / "}
-              <span className="font-semibold text-gray-800 dark:text-gray-200">
-                {currentCategory.name}
-              </span>
-            </>
-          )}
-        </div>
+        <Breadcrumb categoryName={currentCategory?.name} />
 
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-4">
@@ -140,70 +115,16 @@ export default function ProductsListingPage() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-zinc-800 p-4 rounded-lg shadow-md mb-6">
-          <h3 className="font-semibold mb-3">Filter by Design Category</h3>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleDesignCategoryChange(null)}
-              className={`px-4 py-2 rounded-lg transition ${
-                !selectedDesignCategory
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 dark:bg-zinc-700 hover:bg-gray-300"
-              }`}
-            >
-              All
-            </button>
-            {designCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => handleDesignCategoryChange(cat.id.toString())}
-                className={`px-4 py-2 rounded-lg transition ${
-                  selectedDesignCategory === cat.id.toString()
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 dark:bg-zinc-700 hover:bg-gray-300"
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        <FilterBar
+          designCategories={designCategories}
+          selectedDesignCategory={selectedDesignCategory}
+          onFilterChange={handleDesignCategoryChange}
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              onClick={() => handleProductClick(product)}
-              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer group overflow-hidden"
-            >
-              <div className="h-64 bg-gray-200 overflow-hidden">
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                />
-              </div>
-              <div className="p-4">
-                <h3 className="font-bold text-lg mb-2 truncate">{product.name}</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2 line-clamp-2">
-                  {product.description}
-                </p>
-                <div className="flex justify-between items-center">
-                  <span className="text-blue-600 font-bold text-xl">
-                    Rs. {product.price.toFixed(2)}
-                  </span>
-                  <span className="text-sm text-gray-500">Size: {product.size}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredProducts.length === 0 && (
-          <div className="text-center text-gray-500 mt-8">
-            No products found with the selected filters.
-          </div>
-        )}
+        <ProductsGrid
+          products={filteredProducts}
+          onProductClick={handleProductClick}
+        />
       </div>
     </div>
   );

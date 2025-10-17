@@ -1,24 +1,32 @@
-import { NextResponse } from 'next/server'
-import { supabaseServer } from '@/app/lib/supabaseClient'
-import bcrypt from 'bcryptjs'    
+import { NextResponse } from 'next/server';
+import { supabaseServer } from '@/app/lib/supabaseClient';
 
-export async function POST(req: Request) {
-  const { email, password } = await req.json()
+export async function GET(req: Request) {
+  const user_id = req.headers.get("x-user-id");
 
-  const { data: admin, error } = await supabaseServer
+  if (!user_id)
+    return NextResponse.json({ error: "Missing user ID" }, { status: 400 });
+
+  const { data: admin, error: adminError } = await supabaseServer
     .from('users')
-    .select('password, role')
-    .eq('email', email)
-    .single()
+    .select('role')
+    .eq('id', user_id)
+    .single();
 
-  if (error || !admin) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (adminError || !admin)
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-  const isMatch = await bcrypt.compare(password, admin.password)
-  if (!isMatch || admin.role !== 'admin')
-    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  if (admin.role !== 'admin')
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-  const { data: users, error: getError } = await supabaseServer.from('users').select('*')
-  if (getError) return NextResponse.json({ error: getError.message }, { status: 400 })
+  // Get all users
+  const { data: users, error: getError } = await supabaseServer
+    .from('users')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-  return NextResponse.json({ users })
+  if (getError)
+    return NextResponse.json({ error: getError.message }, { status: 400 });
+
+  return NextResponse.json({ users });
 }
